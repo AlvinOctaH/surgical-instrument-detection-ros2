@@ -12,7 +12,19 @@ End-to-end pipeline for surgical instrument instance segmentation and real-time 
 
 ## Demo
 
-> *Add GIF here — export 5–10s from `results/demo_tracking.mp4` using [ezgif.com](https://ezgif.com/video-to-gif)*
+![Demo](results/demo.gif)
+
+---
+
+## Training Curves
+
+Training ran for 100 epochs on EndoVis 2017 Fold 0 (1,350 frames). Early stopping was disabled to allow full convergence.
+
+![Training Results](assets/results.png)
+
+| | |
+|---|---|
+| ![Confusion Matrix](assets/confusion_matrix_normalized.png) | ![Mask PR Curve](assets/MaskPR_curve.png) |
 
 ---
 
