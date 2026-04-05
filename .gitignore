@@ -6,8 +6,10 @@ data/
 *.pth
 *.onnx
 
-# Training runs
-results/
+# Training runs (large artifacts)
+results/endovis_yolo11s_seg_v1/
+results/endovis_yolo11s_seg_v2/
+results/predictions/
 
 # Python
 __pycache__/
