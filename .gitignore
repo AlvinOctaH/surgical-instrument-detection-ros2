@@ -1,4 +1,4 @@
-# Dataset — too large to push (10GB+)
+# Dataset — too large (10GB+)
 data/
 
 # Model weights
@@ -6,13 +6,8 @@ data/
 *.pth
 *.onnx
 
-# Training runs (large)
-results/endovis_yolo11s_seg_v1/
-results/endovis_yolo11s_seg_v2/
-
-# Keep these in results/
-!results/predictions/
-!results/demo_tracking.mp4
+# Training runs
+results/
 
 # Python
 __pycache__/
@@ -33,5 +28,10 @@ venv/
 .DS_Store
 Thumbs.db
 
-# wandb logs
+# wandb
 wandb/
+
+# ROS2 build artifacts
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
