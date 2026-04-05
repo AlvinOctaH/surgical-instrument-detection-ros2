@@ -16,31 +16,14 @@ End-to-end pipeline for surgical instrument instance segmentation and real-time 
 
 ---
 
-## Training Curves
+## Overview
 
-Training ran for 100 epochs on EndoVis 2017 Fold 0 (1,350 frames). Early stopping was disabled to allow full convergence.
+This project builds a complete perception pipeline for surgical robotics:
 
-![Training Results](assets/results.png)
-
-| | |
-|---|---|
-| ![Confusion Matrix](assets/confusion_matrix_normalized.png) | ![Mask PR Curve](assets/MaskPR_curve.png) |
-
----
-
-## Results
-
-Evaluated on EndoVis 2017 Fold 0 validation split (450 frames). Only 4 of 7 classes are present in this split — see [Limitations](#limitations).
-
-| Class | Mask mAP50 | Mask mAP50-95 | Val Instances |
-|---|---|---|---|
-| **Mean** | **0.468** | **0.294** | 1,087 |
-| Large Needle Driver | 0.709 | 0.569 | 448 |
-| Bipolar Forceps | 0.404 | 0.231 | 75 |
-| Prograsp Forceps | 0.373 | 0.170 | 340 |
-| Ultrasound Probe | 0.387 | 0.206 | 224 |
-
-**Runtime:** ~6 Hz on NVIDIA RTX 500 Ada Laptop GPU (4 GB VRAM)
+1. **Annotation conversion** — EndoVis 2017 semantic masks → YOLO instance segmentation format via contour extraction
+2. **Model training** — YOLO11s-seg fine-tuned on 7 surgical instrument classes
+3. **Tracking** — ByteTrack integration for persistent instrument IDs across frames
+4. **ROS2 deployment** — real-time node publishing to standard topics, directly compatible with dVRK
 
 ---
 
@@ -50,13 +33,13 @@ Evaluated on EndoVis 2017 Fold 0 validation split (450 frames). Only 4 of 7 clas
 EndoVis 2017 semantic masks (PNG)
          │
          ▼
- convert_to_yolo.py        contour extraction → YOLO instance polygon .txt
+ convert_to_yolo.py     contour extraction → YOLO instance polygon .txt
          │
          ▼
- train.py                  YOLO11s-seg fine-tuning (100 epochs, AdamW)
+ train.py               YOLO11s-seg fine-tuning (AdamW, early stopping)
          │
          ▼
- inference_video.py        YOLO11s-seg + ByteTrack → demo .mp4
+ inference_video.py     YOLO11s-seg + ByteTrack → demo .mp4
          │
          ▼
  ROS2 detector_node.py
@@ -64,6 +47,71 @@ EndoVis 2017 semantic masks (PNG)
    pub  /surgical/detections       vision_msgs/Detection2DArray
    pub  /surgical/annotated_image  sensor_msgs/Image
 ```
+
+---
+
+## Results
+
+Evaluated on EndoVis 2017 Fold 0 validation split (450 frames).
+Only 4 of 7 classes appear in this split — see [Limitations](#limitations).
+
+### Box Detection
+
+| Class | Precision | Recall | mAP50 | mAP50-95 | Val Instances |
+|---|---|---|---|---|---|
+| **Mean** | **0.644** | **0.336** | **0.422** | **0.287** | **1,087** |
+| Large Needle Driver | 0.537 | 0.739 | 0.684 | 0.543 | 448 |
+| Bipolar Forceps | 0.426 | 0.373 | 0.316 | 0.230 | 75 |
+| Prograsp Forceps | 0.714 | 0.149 | 0.329 | 0.168 | 340 |
+| Ultrasound Probe | 0.899 | 0.085 | 0.361 | 0.206 | 224 |
+
+### Mask Segmentation
+
+| Class | Precision | Recall | mAP50 | mAP50-95 | Val Instances |
+|---|---|---|---|---|---|
+| **Mean** | **0.683** | **0.357** | **0.468** | **0.294** | **1,087** |
+| Large Needle Driver | 0.562 | 0.765 | 0.709 | 0.569 | 448 |
+| Bipolar Forceps | 0.475 | 0.415 | 0.404 | 0.231 | 75 |
+| Prograsp Forceps | 0.799 | 0.166 | 0.373 | 0.170 | 340 |
+| Ultrasound Probe | 0.899 | 0.084 | 0.387 | 0.205 | 224 |
+
+**Runtime:** ~6 Hz on NVIDIA RTX 500 Ada Laptop GPU (4 GB VRAM)
+
+### Key Insights
+
+**Large Needle Driver performs best (Mask mAP50 = 0.709)**
+Most represented class in training (1,351 instances). High recall (0.765) means the model rarely misses it — important for safety-critical surgical assistance.
+
+**High precision, low recall across all classes**
+Mean precision (0.683) is roughly 2× mean recall (0.357). The model is conservative — only predicts when confident. For surgical robotics, this tradeoff is acceptable: false positives in downstream control are more dangerous than missed detections.
+
+**Ultrasound Probe: P=0.899, R=0.084**
+Near-perfect precision but near-zero recall. Classic symptom of underrepresentation (244 training instances) — the model learned a very tight decision boundary.
+
+**3 classes not evaluated**
+Vessel Sealer, Grasping Retractor, and Monopolar Curved Scissors have zero instances in the Fold 0 validation split. Full 4-fold cross-validation is needed for complete coverage.
+
+---
+
+## Training Curves
+
+Training ran for up to 50 epochs on EndoVis 2017 Fold 0 (1,350 frames).
+Early stopping triggered at **epoch 20** (patience=15) — best checkpoint saved at that point.
+
+![Training Results](assets/results.png)
+
+**What the curves show:**
+- `box_loss`, `seg_loss`, `cls_loss` all decrease steadily — model learning bounding box regression, mask quality, and classification simultaneously
+- Validation mAP improves until ~epoch 20 then plateaus — consistent with where early stopping triggered
+- Precision climbs faster than recall — model becomes increasingly conservative, only predicting when confident
+
+| Confusion Matrix (Normalized) | Mask Precision-Recall Curve |
+|---|---|
+| ![Confusion Matrix](assets/confusion_matrix_normalized.png) | ![Mask PR Curve](assets/MaskPR_curve.png) |
+
+**Confusion matrix:** Large Needle Driver has the strongest diagonal value — consistent with highest training representation. Three classes show no predictions because they are absent from Fold 0 validation split.
+
+**Precision-Recall curve:** Large Needle Driver has the largest area under curve. Prograsp Forceps and Ultrasound Probe drop off faster, reflecting lower representation and higher visual variability across sequences.
 
 ---
 
@@ -77,12 +125,16 @@ EndoVis 2017 semantic masks (PNG)
 │   └── inference_video.py      # Inference + ByteTrack demo video
 ├── src/
 │   └── dataset.py              # Dataset loader + visualization utilities
-└── ros2_ws/
-    └── src/surgical_instrument_detector/
-        ├── detector_node.py    # ROS2 node — inference + tracking + publish
-        ├── test_publisher.py   # Simulated camera using EndoVis frames
-        ├── setup.py
-        └── package.xml
+├── ros2_ws/
+│   └── src/surgical_instrument_detector/
+│       ├── detector_node.py    # ROS2 node — inference + tracking + publish
+│       ├── test_publisher.py   # Simulated camera using EndoVis frames
+│       ├── setup.py
+│       └── package.xml
+└── assets/                     # Training result plots
+    ├── results.png
+    ├── confusion_matrix_normalized.png
+    └── MaskPR_curve.png
 ```
 
 ---
@@ -138,7 +190,7 @@ Saves polygon overlay images to `results/predictions/` for visual inspection.
 python scripts/train.py
 ```
 
-Fine-tunes YOLO11s-seg for 100 epochs. Best weights saved to:
+Fine-tunes YOLO11s-seg. Best weights saved to:
 `results/endovis_yolo11s_seg_v1/weights/best.pt`
 
 ### 6. Demo video
@@ -212,13 +264,13 @@ ros2 run surgical_instrument_detector detector_node \
 | Model | YOLO11s-seg (COCO pretrained) |
 | Dataset | EndoVis 2017, Fold 0 |
 | Train / Val split | 1,350 / 450 frames |
-| Epochs | 100 |
+| Epochs | 50 (early stop at epoch 20) |
 | Optimizer | AdamW (lr=0.001, lrf=0.01) |
 | Batch size | 8 |
 | Image size | 640 × 640 |
 | Augmentation | HFlip, HSV jitter, rotation ±10°, mosaic |
 | Hardware | NVIDIA RTX 500 Ada, 4 GB VRAM |
-| Training time | ~6 hours |
+| Training time | ~3 hours |
 
 ---
 
@@ -227,6 +279,7 @@ ros2 run surgical_instrument_detector detector_node \
 - **Single-fold evaluation** — Fold 0 val split contains only 4 of 7 classes. Full 4-fold cross-validation needed for complete coverage.
 - **Throughput** — ~6 Hz on mobile GPU. TensorRT deployment expected to reach real-time (>25 Hz).
 - **Instance merging** — same-class instruments in contact are merged into one polygon. Learned instance separation would handle this better.
+- **Early stopping** — best checkpoint at epoch 20 out of 50. Longer training with learning rate scheduling may improve rare class performance.
 
 ---
 
@@ -236,10 +289,10 @@ ros2 run surgical_instrument_detector detector_node \
 - [Ultralytics YOLO11](https://github.com/ultralytics/ultralytics)
 - [ByteTrack](https://arxiv.org/abs/2110.06864) — Zhang et al., ECCV 2022
 - [MATIS](https://github.com/BCV-Uniandes/MATIS) — Dataset bundle
+- [dVRK](https://github.com/jhu-dvrk/sawIntuitiveResearchKit) — da Vinci Research Kit
 
 ---
 
 ## Author
 
-**Alvin** — B.Eng. Robotics & AI  
-Intern, Dept. Biomedical Engineering, National Cheng Kung University (NCKU), Taiwan
+**Alvin Octa Hidayathullah**
