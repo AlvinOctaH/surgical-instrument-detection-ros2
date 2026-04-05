@@ -1,60 +1,56 @@
 # Surgical Instrument Detection & Tracking with ROS2
 
-Real-time surgical instrument instance segmentation and tracking pipeline built on EndoVis 2017, YOLO11s-seg, ByteTrack, and ROS2 Humble. Designed for integration with surgical robotic platforms (dVRK).
+End-to-end pipeline for surgical instrument instance segmentation and real-time tracking, built for minimally invasive surgery (MIS) applications. Fine-tunes YOLO11s-seg on EndoVis 2017, integrates ByteTrack for persistent instrument tracking, and deploys as a ROS2 Humble node compatible with the da Vinci Research Kit (dVRK).
 
-![Python](https://img.shields.io/badge/Python-3.10-blue)
-![ROS2](https://img.shields.io/badge/ROS2-Humble-orange)
-![Framework](https://img.shields.io/badge/Framework-Ultralytics_YOLO11-purple)
-![Dataset](https://img.shields.io/badge/Dataset-EndoVis_2017-green)
-![GPU](https://img.shields.io/badge/GPU-RTX_500_Ada_4GB-red)
+[![Python](https://img.shields.io/badge/Python-3.10-3776ab?logo=python&logoColor=white)](https://www.python.org/)
+[![ROS2](https://img.shields.io/badge/ROS2-Humble-22314e?logo=ros&logoColor=white)](https://docs.ros.org/en/humble/)
+[![YOLO](https://img.shields.io/badge/YOLO11s--seg-Ultralytics-purple)](https://github.com/ultralytics/ultralytics)
+[![Dataset](https://img.shields.io/badge/Dataset-EndoVis_2017-green)](https://endovissub2017-roboticinstrumentsegmentation.grand-challenge.org/)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ---
 
 ## Demo
 
-> Tracking output on EndoVis 2017 seq2 — each instrument gets a persistent track ID across frames.
-
-*(Insert GIF or video screenshot here — export a short clip from `results/demo_tracking.mp4`)*
+> *Add GIF here — export 5–10s from `results/demo_tracking.mp4` using [ezgif.com](https://ezgif.com/video-to-gif)*
 
 ---
 
 ## Results
 
-Evaluated on EndoVis 2017 Fold 0 validation split (450 frames, 4 classes present).
+Evaluated on EndoVis 2017 Fold 0 validation split (450 frames). Only 4 of 7 classes are present in this split — see [Limitations](#limitations).
 
-| Class | Box mAP50 | Mask mAP50 | Mask mAP50-95 |
+| Class | Mask mAP50 | Mask mAP50-95 | Val Instances |
 |---|---|---|---|
-| **All (mean)** | 0.422 | 0.468 | 0.294 |
-| Large Needle Driver | 0.684 | 0.709 | 0.569 |
-| Bipolar Forceps | 0.316 | 0.404 | 0.231 |
-| Prograsp Forceps | 0.329 | 0.373 | 0.170 |
-| Ultrasound Probe | 0.361 | 0.387 | 0.206 |
+| **Mean** | **0.468** | **0.294** | 1,087 |
+| Large Needle Driver | 0.709 | 0.569 | 448 |
+| Bipolar Forceps | 0.404 | 0.231 | 75 |
+| Prograsp Forceps | 0.373 | 0.170 | 340 |
+| Ultrasound Probe | 0.387 | 0.206 | 224 |
 
-> **Note:** Vessel Sealer, Grasping Retractor, and Monopolar Curved Scissors are absent from the Fold 0 validation split — evaluation for these classes requires full 4-fold cross-validation.
-
-**Runtime:** ~6 Hz on NVIDIA RTX 500 Ada Laptop GPU (4 GB VRAM) via ROS2 node.
+**Runtime:** ~6 Hz on NVIDIA RTX 500 Ada Laptop GPU (4 GB VRAM)
 
 ---
 
-## Pipeline Overview
+## Pipeline
 
 ```
-EndoVis 2017 Semantic Masks
-        │
-        ▼
-scripts/convert_to_yolo.py      ← semantic PNG → YOLO instance polygon .txt
-        │
-        ▼
-scripts/train.py                ← YOLO11s-seg fine-tuning (100 epochs, AdamW)
-        │
-        ▼
-scripts/inference_video.py      ← YOLO11s-seg + ByteTrack → demo .mp4
-        │
-        ▼
-ROS2 surgical_instrument_detector
-  ├── detector_node.py          ← subscribes /camera/image_raw
-  ├── publishes /surgical/detections          (vision_msgs/Detection2DArray)
-  └── publishes /surgical/annotated_image     (sensor_msgs/Image)
+EndoVis 2017 semantic masks (PNG)
+         │
+         ▼
+ convert_to_yolo.py        contour extraction → YOLO instance polygon .txt
+         │
+         ▼
+ train.py                  YOLO11s-seg fine-tuning (100 epochs, AdamW)
+         │
+         ▼
+ inference_video.py        YOLO11s-seg + ByteTrack → demo .mp4
+         │
+         ▼
+ ROS2 detector_node.py
+   sub  /camera/image_raw          sensor_msgs/Image
+   pub  /surgical/detections       vision_msgs/Detection2DArray
+   pub  /surgical/annotated_image  sensor_msgs/Image
 ```
 
 ---
@@ -62,50 +58,46 @@ ROS2 surgical_instrument_detector
 ## Project Structure
 
 ```
-surgical_cv_project/
-├── src/
-│   └── dataset.py              # YOLO dataset loader + visualization utilities
 ├── scripts/
-│   ├── convert_to_yolo.py      # Convert EndoVis semantic masks → YOLO format
-│   ├── verify_labels.py        # Verify converted labels with polygon overlays
-│   ├── train.py                # YOLO11s-seg training script
+│   ├── convert_to_yolo.py      # Convert semantic masks → YOLO instance format
+│   ├── verify_labels.py        # Visual verification of converted labels
+│   ├── train.py                # YOLO11s-seg training
 │   └── inference_video.py      # Inference + ByteTrack demo video
-├── ros2_ws/
-│   └── src/surgical_instrument_detector/
-│       ├── detector_node.py    # ROS2 detector + tracker node
-│       └── test_publisher.py   # Simulated camera publisher (for testing)
-├── results/
-│   ├── predictions/            # Verification overlay images
-│   └── demo_tracking.mp4       # Tracking demo video
-└── data/                       # Not tracked (see Dataset section)
+├── src/
+│   └── dataset.py              # Dataset loader + visualization utilities
+└── ros2_ws/
+    └── src/surgical_instrument_detector/
+        ├── detector_node.py    # ROS2 node — inference + tracking + publish
+        ├── test_publisher.py   # Simulated camera using EndoVis frames
+        ├── setup.py
+        └── package.xml
 ```
 
 ---
 
-## Setup
+## Quickstart
 
-### 1. Clone and install dependencies
+### 1. Clone and install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/surgical-instrument-detection.git
-cd surgical-instrument-detection
+git clone https://github.com/AlvinOctaH/surgical-instrument-detection-ros2.git
+cd surgical-instrument-detection-ros2
 
-conda create -n surgical_cv python=3.10
+conda create -n surgical_cv python=3.10 -y
 conda activate surgical_cv
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
-pip install ultralytics opencv-python numpy matplotlib pandas tqdm wandb PyYAML
+pip install ultralytics opencv-python numpy matplotlib pandas tqdm PyYAML
 ```
 
 ### 2. Dataset
 
-Download the EndoVis 2017 dataset via the [MATIS bundle](https://github.com/BCV-Uniandes/MATIS).
-Extract to `data/MATIS/endovis_2017/` with the following structure:
+Download EndoVis 2017 via [MATIS](https://github.com/BCV-Uniandes/MATIS) and extract to:
 
 ```
-endovis_2017/
-├── images/               ← 1800 PNG frames
+data/MATIS/endovis_2017/
+├── images/               # 1800 PNG frames (1280×1024)
 └── annotations/
-    ├── images/           ← 1800 semantic mask PNGs
+    ├── images/           # 1800 semantic mask PNGs
     └── Fold0/
         ├── train.json
         └── val.json
@@ -117,8 +109,8 @@ endovis_2017/
 python scripts/convert_to_yolo.py
 ```
 
-Converts semantic masks → YOLO instance segmentation format.
-Output: `data/yolo_dataset/` with YOLO-compatible images, labels, and `dataset.yaml`.
+Converts semantic segmentation masks → YOLO instance segmentation format.
+Output saved to `data/yolo_dataset/`.
 
 ### 4. Verify labels
 
@@ -134,7 +126,8 @@ Saves polygon overlay images to `results/predictions/` for visual inspection.
 python scripts/train.py
 ```
 
-Trains YOLO11s-seg for 100 epochs. Weights saved to `results/endovis_yolo11s_seg_v1/weights/best.pt`.
+Fine-tunes YOLO11s-seg for 100 epochs. Best weights saved to:
+`results/endovis_yolo11s_seg_v1/weights/best.pt`
 
 ### 6. Demo video
 
@@ -142,13 +135,13 @@ Trains YOLO11s-seg for 100 epochs. Weights saved to `results/endovis_yolo11s_seg
 python scripts/inference_video.py
 ```
 
-Runs YOLO11s-seg + ByteTrack on seq2 frames. Output: `results/demo_tracking.mp4`.
+Runs YOLO11s-seg + ByteTrack on seq2. Output: `results/demo_tracking.mp4`
 
 ---
 
 ## ROS2 Integration
 
-Tested on Ubuntu 22.04 / ROS2 Humble.
+Tested on Ubuntu 22.04 + ROS2 Humble (WSL2 compatible).
 
 ### Install dependencies
 
@@ -167,82 +160,74 @@ source install/setup.bash
 
 ### Run
 
-Terminal 1 — detector node:
 ```bash
-source install/setup.bash
+# Terminal 1 — detector node
 ros2 run surgical_instrument_detector detector_node
-```
 
-Terminal 2 — simulated camera (uses EndoVis frames):
-```bash
-source install/setup.bash
+# Terminal 2 — simulated camera (replays EndoVis frames)
 ros2 run surgical_instrument_detector test_publisher
-```
 
-Terminal 3 — visualize:
-```bash
+# Terminal 3 — visualize live output
 ros2 run rqt_image_view rqt_image_view
-# Select /surgical/annotated_image in the dropdown
+# select /surgical/annotated_image in the dropdown
 ```
 
-### Published Topics
+### Topics
 
-| Topic | Type | Description |
+| Topic | Message Type | Description |
 |---|---|---|
-| `/surgical/detections` | `vision_msgs/Detection2DArray` | Per-instance class, confidence, bbox, track ID |
-| `/surgical/annotated_image` | `sensor_msgs/Image` | Visualization frame with overlays |
+| `/camera/image_raw` | `sensor_msgs/Image` | Input — subscribe |
+| `/surgical/detections` | `vision_msgs/Detection2DArray` | Per-instance detections + track IDs |
+| `/surgical/annotated_image` | `sensor_msgs/Image` | Visualization frames |
 
-### Parameters
+### Node Parameters
 
-| Parameter | Default | Description |
-|---|---|---|
-| `weights_path` | `...best.pt` | Path to model weights |
-| `conf_threshold` | `0.25` | Detection confidence threshold |
-| `iou_threshold` | `0.45` | NMS IoU threshold |
-| `img_size` | `640` | Inference image size |
-
-Override at launch:
 ```bash
 ros2 run surgical_instrument_detector detector_node \
-  --ros-args -p conf_threshold:=0.3 -p img_size:=480
+  --ros-args \
+  -p weights_path:=/path/to/best.pt \
+  -p conf_threshold:=0.25 \
+  -p iou_threshold:=0.45 \
+  -p img_size:=640
 ```
 
 ---
 
 ## Training Details
 
-| Setting | Value |
+| Config | Value |
 |---|---|
-| Model | YOLO11s-seg (pretrained COCO) |
+| Model | YOLO11s-seg (COCO pretrained) |
 | Dataset | EndoVis 2017, Fold 0 |
-| Train / Val | 1350 / 450 frames |
+| Train / Val split | 1,350 / 450 frames |
 | Epochs | 100 |
-| Optimizer | AdamW (lr=0.001) |
+| Optimizer | AdamW (lr=0.001, lrf=0.01) |
 | Batch size | 8 |
 | Image size | 640 × 640 |
-| GPU | NVIDIA RTX 500 Ada (4 GB) |
+| Augmentation | HFlip, HSV jitter, rotation ±10°, mosaic |
+| Hardware | NVIDIA RTX 500 Ada, 4 GB VRAM |
 | Training time | ~6 hours |
 
 ---
 
 ## Limitations
 
-- Single-fold evaluation (Fold 0 only) — 3 of 7 classes have no validation instances in this split. Full 4-fold cross-validation is needed for complete class coverage.
-- ~6 Hz throughput on mobile GPU — below real-time requirements for closed-loop control. TensorRT quantization expected to resolve this.
-- Connected same-class instances are merged into one polygon — learned instance separation would handle instrument contact better.
+- **Single-fold evaluation** — Fold 0 val split contains only 4 of 7 classes. Full 4-fold cross-validation needed for complete coverage.
+- **Throughput** — ~6 Hz on mobile GPU. TensorRT deployment expected to reach real-time (>25 Hz).
+- **Instance merging** — same-class instruments in contact are merged into one polygon. Learned instance separation would handle this better.
 
 ---
 
 ## References
 
-- EndoVis 2017: MICCAI 2017 Robotic Instrument Segmentation Challenge
-- YOLO11: Ultralytics, 2024
-- ByteTrack: Zhang et al., ECCV 2022
-- MATIS: BCV-Uniandes, 2022
+- [EndoVis 2017](https://endovissub2017-roboticinstrumentsegmentation.grand-challenge.org/) — MICCAI 2017 Robotic Instrument Segmentation Challenge
+- [Ultralytics YOLO11](https://github.com/ultralytics/ultralytics)
+- [ByteTrack](https://arxiv.org/abs/2110.06864) — Zhang et al., ECCV 2022
+- [MATIS](https://github.com/BCV-Uniandes/MATIS) — Dataset bundle
 
 ---
 
 ## Author
 
-**Alvin** — B.Eng. Robotics & AI
-Intern, Dept. Biomedical Engineering, NCKU Taiwan
+**Alvin** — B.Eng. Robotics & AI  
+Intern, Dept. Biomedical Engineering, National Cheng Kung University (NCKU), Taiwan
