@@ -2,17 +2,19 @@
 
 End-to-end pipeline for surgical instrument instance segmentation and real-time tracking, built for minimally invasive surgery (MIS) applications. Fine-tunes YOLO11s-seg on EndoVis 2017, integrates ByteTrack for persistent instrument tracking, and deploys as a ROS2 Humble node compatible with the da Vinci Research Kit (dVRK).
 
-[![Python](https://img.shields.io/badge/Python-3.10-3776ab?logo=python&logoColor=white)](https://www.python.org/)
-[![ROS2](https://img.shields.io/badge/ROS2-Humble-22314e?logo=ros&logoColor=white)](https://docs.ros.org/en/humble/)
-[![YOLO](https://img.shields.io/badge/YOLO11s--seg-Ultralytics-purple)](https://github.com/ultralytics/ultralytics)
-[![Dataset](https://img.shields.io/badge/Dataset-EndoVis_2017-green)](https://endovissub2017-roboticinstrumentsegmentation.grand-challenge.org/)
-[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+![Python](https://img.shields.io/badge/Python-3.10-3776ab?logo=python&logoColor=white)
+![ROS2](https://img.shields.io/badge/ROS2-Humble-22314e?logo=ros&logoColor=white)
+![YOLO](https://img.shields.io/badge/YOLO11s--seg-Ultralytics-purple)
+![Dataset](https://img.shields.io/badge/Dataset-EndoVis_2017-green)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ---
 
 ## Demo
 
 ![Demo](results/demo.gif)
+
+> Real-time inference + ByteTrack tracking on EndoVis 2017 Sequence 2. Each instrument receives a persistent track ID across frames.
 
 ---
 
@@ -86,7 +88,7 @@ Most represented class in training (1,351 instances). High recall (0.765) means 
 Mean precision (0.683) is roughly 2× mean recall (0.357). The model is conservative — only predicts when confident. For surgical robotics, this tradeoff is acceptable: false positives in downstream control are more dangerous than missed detections.
 
 **Ultrasound Probe: P=0.899, R=0.084**
-Near-perfect precision but near-zero recall. Classic symptom of underrepresentation (244 training instances) — the model learned a very tight decision boundary.
+Near-perfect precision but near-zero recall. Classic symptom of class underrepresentation (244 training instances) — the model learned a very tight decision boundary.
 
 **3 classes not evaluated**
 Vessel Sealer, Grasping Retractor, and Monopolar Curved Scissors have zero instances in the Fold 0 validation split. Full 4-fold cross-validation is needed for complete coverage.
@@ -95,8 +97,7 @@ Vessel Sealer, Grasping Retractor, and Monopolar Curved Scissors have zero insta
 
 ## Training Curves
 
-Training ran for up to 50 epochs on EndoVis 2017 Fold 0 (1,350 frames).
-Early stopping triggered at **epoch 20** (patience=15) — best checkpoint saved at that point.
+Training ran for up to 50 epochs on EndoVis 2017 Fold 0 (1,350 frames). Early stopping triggered at **epoch 20** (patience=15) — best checkpoint saved at that point.
 
 ![Training Results](assets/results.png)
 
@@ -108,10 +109,6 @@ Early stopping triggered at **epoch 20** (patience=15) — best checkpoint saved
 | Confusion Matrix (Normalized) | Mask Precision-Recall Curve |
 |---|---|
 | ![Confusion Matrix](assets/confusion_matrix_normalized.png) | ![Mask PR Curve](assets/MaskPR_curve.png) |
-
-**Confusion matrix:** Large Needle Driver has the strongest diagonal value — consistent with highest training representation. Three classes show no predictions because they are absent from Fold 0 validation split.
-
-**Precision-Recall curve:** Large Needle Driver has the largest area under curve. Prograsp Forceps and Ultrasound Probe drop off faster, reflecting lower representation and higher visual variability across sequences.
 
 ---
 
@@ -173,8 +170,7 @@ data/MATIS/endovis_2017/
 python scripts/convert_to_yolo.py
 ```
 
-Converts semantic segmentation masks → YOLO instance segmentation format.
-Output saved to `data/yolo_dataset/`.
+Converts semantic segmentation masks → YOLO instance segmentation format. Output saved to `data/yolo_dataset/`.
 
 ### 4. Verify labels
 
@@ -190,8 +186,7 @@ Saves polygon overlay images to `results/predictions/` for visual inspection.
 python scripts/train.py
 ```
 
-Fine-tunes YOLO11s-seg. Best weights saved to:
-`results/endovis_yolo11s_seg_v1/weights/best.pt`
+Fine-tunes YOLO11s-seg. Best weights saved to `results/endovis_yolo11s_seg_v1/weights/best.pt`.
 
 ### 6. Demo video
 
@@ -276,7 +271,7 @@ ros2 run surgical_instrument_detector detector_node \
 
 ## Limitations
 
-- **Single-fold evaluation** — Fold 0 val split contains only 4 of 7 classes. Full 4-fold cross-validation needed for complete coverage.
+- **Single-fold evaluation** — Fold 0 val split contains only 4 of 7 classes. Full 4-fold cross-validation needed for complete per-class coverage.
 - **Throughput** — ~6 Hz on mobile GPU. TensorRT deployment expected to reach real-time (>25 Hz).
 - **Instance merging** — same-class instruments in contact are merged into one polygon. Learned instance separation would handle this better.
 - **Early stopping** — best checkpoint at epoch 20 out of 50. Longer training with learning rate scheduling may improve rare class performance.
@@ -296,3 +291,12 @@ ros2 run surgical_instrument_detector detector_node \
 ## Author
 
 **Alvin Octa Hidayathullah**
+B.Eng. Robotics & AI Engineering, Universitas Airlangga
+
+[![GitHub](https://img.shields.io/badge/GitHub-AlvinOctaH-181717?logo=github)](https://github.com/AlvinOctaH)
+
+---
+
+## License
+
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
